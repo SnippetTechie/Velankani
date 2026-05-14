@@ -1,5 +1,12 @@
-import { SignIn } from '@clerk/nextjs';
+'use client';
+
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
+
+const SignIn = dynamic(
+  () => import('@clerk/nextjs').then((module) => module.SignIn),
+  { ssr: false },
+);
 
 export default function SignInPage() {
   const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;

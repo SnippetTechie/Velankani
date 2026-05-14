@@ -8,6 +8,7 @@ import { useAIStream } from '@/lib/hooks/useAIStream';
 import { useCreditStore } from '@/lib/stores/credits.store';
 import { useActivityStore } from '@/lib/stores/activity.store';
 import { useCanvasStore } from '@/lib/stores/canvas.store';
+import { useModelPreferencesStore } from '@/lib/stores/model-preferences.store';
 import { getModel, getAvailableModels } from '@vel-ai/shared/types/models';
 
 interface AIChatTileData {
@@ -33,7 +34,26 @@ function AIChatTile({ id, data, selected }: NodeProps<AIChatTileData>) {
   const { deductPreview } = useCreditStore();
   const { addEvent } = useActivityStore();
   const { getContextSources } = useCanvasStore();
+  const allowedModelIds = useModelPreferencesStore((state) => state.allowedModelIds);
+  const enabledModelIds = useModelPreferencesStore((state) => state.enabledModelIds);
+  const availableModels = getAvailableModels();
+  const scopedModels =
+    allowedModelIds.length > 0
+      ? availableModels.filter((m) => allowedModelIds.includes(m.id))
+      : availableModels;
+  const selectableModels =
+    enabledModelIds.length > 0
+      ? scopedModels.filter((m) => enabledModelIds.includes(m.id))
+      : scopedModels;
   const model = getModel(currentModel);
+
+  useEffect(() => {
+    if (selectableModels.length === 0) return;
+    const stillAvailable = selectableModels.some((m) => m.id === currentModel);
+    if (!stillAvailable) {
+      setCurrentModel(selectableModels[0].id);
+    }
+  }, [currentModel, selectableModels]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -239,7 +259,7 @@ function AIChatTile({ id, data, selected }: NodeProps<AIChatTileData>) {
                 overflowY: 'auto',
               }}
             >
-              {getAvailableModels().map((m) => (
+              {selectableModels.map((m) => (
                 <button
                   key={m.id}
                   onClick={() => {

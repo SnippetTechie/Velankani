@@ -3,17 +3,20 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCanvasStore } from '@/lib/stores/canvas.store';
+import { useModelPreferencesStore } from '@/lib/stores/model-preferences.store';
 import { v4 as uuidv4 } from 'uuid';
 import { getAvailableModels } from '@vel-ai/shared/types/models';
 import { getAvailableTiles } from '@vel-ai/shared/types/tiles';
 
 interface CanvasToolbarProps {
   workspaceId: string;
+  allowedModelIds?: string[];
 }
 
-export function CanvasToolbar({ workspaceId }: CanvasToolbarProps) {
+export function CanvasToolbar({ workspaceId, allowedModelIds }: CanvasToolbarProps) {
   const [showPicker, setShowPicker] = useState(false);
   const { addNode } = useCanvasStore();
+  const enabledModelIds = useModelPreferencesStore((state) => state.enabledModelIds);
 
   const addTile = (
     type: string,
@@ -41,7 +44,15 @@ export function CanvasToolbar({ workspaceId }: CanvasToolbarProps) {
     setShowPicker(false);
   };
 
-  const models = getAvailableModels();
+  const allModels = getAvailableModels();
+  const scopedModels =
+    allowedModelIds && allowedModelIds.length > 0
+      ? allModels.filter((model) => allowedModelIds.includes(model.id))
+      : allModels;
+  const models =
+    enabledModelIds.length > 0
+      ? scopedModels.filter((model) => enabledModelIds.includes(model.id))
+      : scopedModels;
   const tiles = getAvailableTiles();
 
   return (

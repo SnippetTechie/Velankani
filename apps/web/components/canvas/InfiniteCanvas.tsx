@@ -32,9 +32,10 @@ const edgeTypes = {
 
 interface InfiniteCanvasProps {
   workspaceId: string;
+  allowedModelIds?: string[];
 }
 
-function InfiniteCanvas({ workspaceId }: InfiniteCanvasProps) {
+function InfiniteCanvas({ workspaceId, allowedModelIds }: InfiniteCanvasProps) {
   const { nodes, edges, onNodesChange, onEdgesChange, addEdge } =
     useCanvasStore();
 
@@ -105,7 +106,7 @@ function InfiniteCanvas({ workspaceId }: InfiniteCanvasProps) {
         />
 
         <Panel position="bottom-center">
-          <CanvasToolbar workspaceId={workspaceId} />
+          <CanvasToolbar workspaceId={workspaceId} allowedModelIds={allowedModelIds} />
         </Panel>
       </ReactFlow>
     </div>
@@ -114,10 +115,11 @@ function InfiniteCanvas({ workspaceId }: InfiniteCanvasProps) {
 
 export function InfiniteCanvasProvider({
   workspaceId,
+  allowedModelIds,
 }: InfiniteCanvasProps) {
   return (
     <ReactFlowProvider>
-      <InfiniteCanvas workspaceId={workspaceId} />
+      <InfiniteCanvas workspaceId={workspaceId} allowedModelIds={allowedModelIds} />
     </ReactFlowProvider>
   );
 }

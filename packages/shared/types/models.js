@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getModelsByProvider = exports.getAvailableModels = exports.getModel = exports.CONSENSUS_CREDITS = exports.CONSENSUS_MODEL_IDS = exports.AI_MODELS = void 0;
+exports.getModelsByProvider = exports.getModelsForPlan = exports.getAvailableModels = exports.getModel = exports.PLAN_MODEL_ACCESS = exports.CONSENSUS_CREDITS = exports.CONSENSUS_MODEL_IDS = exports.AI_MODELS = void 0;
 exports.AI_MODELS = [
     {
         id: 'claude-opus-4',
@@ -273,10 +273,25 @@ exports.AI_MODELS = [
 ];
 exports.CONSENSUS_MODEL_IDS = ['claude-sonnet-4', 'gpt-4o', 'gemini-1-5-pro'];
 exports.CONSENSUS_CREDITS = 19;
+exports.PLAN_MODEL_ACCESS = {
+    free: ['claude-haiku-3-5', 'gpt-4o', 'gemini-2-flash', 'llama-3-3-70b'],
+    pro: ['*'],
+    pro_byok: ['*'],
+    teams: ['*'],
+    enterprise: ['*'],
+};
 const getModel = (id) => exports.AI_MODELS.find((m) => m.id === id);
 exports.getModel = getModel;
 const getAvailableModels = () => exports.AI_MODELS.filter((m) => m.available);
 exports.getAvailableModels = getAvailableModels;
+const getModelsForPlan = (plan) => {
+    const available = (0, exports.getAvailableModels)();
+    const allowed = exports.PLAN_MODEL_ACCESS[plan] || exports.PLAN_MODEL_ACCESS.free;
+    if (allowed[0] === '*')
+        return available;
+    return available.filter((model) => allowed.includes(model.id));
+};
+exports.getModelsForPlan = getModelsForPlan;
 const getModelsByProvider = (provider) => exports.AI_MODELS.filter((m) => m.provider === provider && m.available);
 exports.getModelsByProvider = getModelsByProvider;
 //# sourceMappingURL=models.js.map

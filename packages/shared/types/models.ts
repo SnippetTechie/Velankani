@@ -310,11 +310,30 @@ export const AI_MODELS: AIModel[] = [
 export const CONSENSUS_MODEL_IDS = ['claude-sonnet-4', 'gpt-4o', 'gemini-1-5-pro'] as const;
 export const CONSENSUS_CREDITS = 19; // 8 + 6 + 5
 
+export type UserPlan = 'free' | 'pro' | 'pro_byok' | 'teams' | 'enterprise';
+
+export const PLAN_MODEL_ACCESS: Record<UserPlan, string[]> = {
+  free: ['claude-haiku-3-5', 'gpt-4o', 'gemini-2-flash', 'llama-3-3-70b'],
+  pro: ['*'],
+  pro_byok: ['*'],
+  teams: ['*'],
+  enterprise: ['*'],
+};
+
 export const getModel = (id: string): AIModel | undefined =>
   AI_MODELS.find((m) => m.id === id);
 
 export const getAvailableModels = (): AIModel[] =>
   AI_MODELS.filter((m) => m.available);
+
+export const getModelsForPlan = (plan: string): AIModel[] => {
+  const available = getAvailableModels();
+  const allowed =
+    PLAN_MODEL_ACCESS[plan as UserPlan] || PLAN_MODEL_ACCESS.free;
+
+  if (allowed[0] === '*') return available;
+  return available.filter((model) => allowed.includes(model.id));
+};
 
 export const getModelsByProvider = (provider: AIProvider): AIModel[] =>
   AI_MODELS.filter((m) => m.provider === provider && m.available);
