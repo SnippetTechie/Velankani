@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import MagicBento from '@/components/marketing/MagicBento';
 import GradientBlinds from '@/components/marketing/GradientBlinds';
+import RotatingText from '@/components/marketing/RotatingText';
 
 const SWARM_ITEMS = [
   { label: 'Ask once, compare instantly', color: 'bg-emerald-400' },
@@ -50,7 +51,21 @@ function HeroInner() {
             <span className="text-white/45">One chat. One subscription.</span>
           </h1>
           <p className="mt-7 max-w-3xl text-[clamp(18px,2.1vw,36px)] leading-relaxed text-white/50">
-            Use GPT, Claude, Gemini, Grok and more in one place. Ask once, compare instantly, and pick the best answer faster.
+            Use{' '}
+            <RotatingText
+              texts={['GPT', 'Claude', 'Gemini', 'Grok', 'DeepSeek', 'Kimi']}
+              mainClassName="inline-flex w-[9ch] justify-center px-2 py-0.5 rounded-lg border border-white/20 bg-white/10 text-white font-semibold align-middle"
+              splitLevelClassName="overflow-hidden"
+              elementLevelClassName="inline-block"
+              staggerFrom="last"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '-120%' }}
+              staggerDuration={0.02}
+              transition={{ type: 'spring', damping: 30, stiffness: 420 }}
+              rotationInterval={1800}
+            />{' '}
+            and more in one place. Ask once, compare instantly, and pick the best answer faster.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/sign-up" className="rounded-xl border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-white/15">

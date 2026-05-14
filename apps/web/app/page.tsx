@@ -9,10 +9,12 @@ import { ModelGrid } from '@/components/marketing/ModelGrid';
 import { PricingCards } from '@/components/marketing/PricingCards';
 import { FinalCta } from '@/components/marketing/FinalCta';
 import { Footer } from '@/components/marketing/Footer';
+import SplashCursor from '@/components/ui/SplashCursor';
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen grok-page-bg text-white overflow-hidden">
+      <SplashCursor RAINBOW_MODE={false} COLOR="#FFFFFF" />
       <Nav />
       <Hero />
       <CapabilityShowcase />
