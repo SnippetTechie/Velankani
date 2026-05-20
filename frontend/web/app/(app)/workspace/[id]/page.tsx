@@ -10,6 +10,7 @@ import {
   Globe,
   Image as ImageIcon,
   LogOut,
+  MessageSquare,
   Mic,
   Plus,
   Search,
@@ -73,6 +74,7 @@ export default function WorkspacePage() {
   // Resolved workspace UUID from the backend
   const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(null);
   const [resolvedTileId, setResolvedTileId] = useState<string | null>(null);
+  const [sidebarTiles, setSidebarTiles] = useState<Array<{ id: string; label: string | null; created_at: string }>>([]);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -110,6 +112,9 @@ export default function WorkspacePage() {
             });
             if (tilesRes.ok) {
               const existingTiles = await tilesRes.json();
+              if (Array.isArray(existingTiles)) {
+                setSidebarTiles(existingTiles);
+              }
               if (existingTiles.length > 0) {
                 setResolvedTileId(existingTiles[0].id);
                 return;
@@ -203,6 +208,9 @@ export default function WorkspacePage() {
               model: msg.model || undefined,
             }));
             setChatHistory(history);
+            // Clear any live model responses so we don't show duplicates
+            setModelResponses([]);
+            setLastUserMessage('');
           }
         }
       } catch {
@@ -371,18 +379,21 @@ export default function WorkspacePage() {
                 if (data.type === 'delta' && data.content) {
                   setModelResponses((prev) => {
                     const updated = [...prev];
+                    if (!updated[index]) return prev;
                     updated[index] = { ...updated[index], content: updated[index].content + data.content };
                     return updated;
                   });
                 } else if (data.type === 'error') {
                   setModelResponses((prev) => {
                     const updated = [...prev];
+                    if (!updated[index]) return prev;
                     updated[index] = { ...updated[index], status: 'error', error: data.message };
                     return updated;
                   });
                 } else if (data.type === 'done') {
                   setModelResponses((prev) => {
                     const updated = [...prev];
+                    if (!updated[index]) return prev;
                     updated[index] = { ...updated[index], status: 'done' };
                     return updated;
                   });
@@ -395,6 +406,7 @@ export default function WorkspacePage() {
 
           setModelResponses((prev) => {
             const updated = [...prev];
+            if (!updated[index]) return prev;
             if (updated[index].status === 'streaming') {
               updated[index] = { ...updated[index], status: 'done' };
             }
@@ -404,6 +416,7 @@ export default function WorkspacePage() {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           setModelResponses((prev) => {
             const updated = [...prev];
+            if (!updated[index]) return prev;
             updated[index] = { ...updated[index], status: 'error', error: err instanceof Error ? err.message : 'Stream failed' };
             return updated;
           });
@@ -592,7 +605,32 @@ export default function WorkspacePage() {
 
         <div className="mt-3 space-y-1">
           <button
-            onClick={() => { setInput(''); setModelResponses([]); setAllDone(false); setChatHistory([]); setLastUserMessage(''); }}
+            onClick={async () => {
+              setInput(''); setModelResponses([]); setAllDone(false); setChatHistory([]); setLastUserMessage('');
+              if (!resolvedWorkspaceId) return;
+              const token = await getToken();
+              const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+              const label = `Chat ${new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+              try {
+                const res = await fetch(`${API_BASE}/tiles`, {
+                  method: 'POST', headers, credentials: 'include',
+                  body: JSON.stringify({
+                    workspaceId: resolvedWorkspaceId,
+                    reactFlowId: `tile-${Date.now()}`,
+                    tileType: 'ai-chat',
+                    label,
+                    positionX: 0,
+                    positionY: 0,
+                  }),
+                });
+                if (res.ok) {
+                  const tile = await res.json();
+                  setSidebarTiles((prev) => [tile, ...prev]);
+                  setResolvedTileId(tile.id);
+                }
+              } catch {}
+            }}
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[var(--vel-card)]"
           >
             <CirclePlus className="h-4 w-4 text-[var(--vel-violet)]" />
@@ -620,6 +658,36 @@ export default function WorkspacePage() {
             <ImageIcon className="h-4 w-4 text-[var(--vel-violet)]" /> Image Studio
           </button>
         </div>
+
+        {/* Chat list */}
+        {sidebarTiles.length > 0 && (
+          <div className="mt-3 flex-1 space-y-0.5 overflow-y-auto">
+            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--vel-text-muted)]">Chats</p>
+            {sidebarTiles.map((tile) => {
+              const isActive = tile.id === resolvedTileId;
+              return (
+                <button
+                  key={tile.id}
+                  onClick={() => {
+                    setResolvedTileId(tile.id);
+                    setChatHistory([]);
+                    setModelResponses([]);
+                    setLastUserMessage('');
+                    setAllDone(false);
+                  }}
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+                    isActive
+                      ? 'bg-[var(--vel-card)] text-white font-medium'
+                      : 'text-[var(--vel-text-secondary)] hover:bg-[var(--vel-card)] hover:text-white'
+                  }`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{tile.label || 'Chat'}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-4 rounded-lg border border-[var(--vel-border)] bg-[var(--vel-card)] p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--vel-text-muted)]">Workspace Controls</p>
