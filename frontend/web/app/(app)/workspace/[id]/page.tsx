@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Globe,
   Image as ImageIcon,
+  LogOut,
   Mic,
   Plus,
   Search,
@@ -22,6 +23,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
+import { useSession, signOut } from '@/lib/auth-client';
 import { getAvailableModels, getModel, type AIModel } from '@vel-ai/shared/types/models';
 import { useWorkspaceStore } from '@/lib/stores/workspace.store';
 import { useCreditStore } from '@/lib/stores/credits.store';
@@ -55,6 +57,8 @@ export default function WorkspacePage() {
 
   const [input, setInput] = useState('');
   const [modelResponses, setModelResponses] = useState<ModelResponse[]>([]);
+  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string; model?: string }>>([]);
+  const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
@@ -63,6 +67,8 @@ export default function WorkspacePage() {
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
   const [allDone, setAllDone] = useState(false);
   const { getToken } = useAuth();
+  const { data: session } = useSession();
+  const [showSignOut, setShowSignOut] = useState(false);
 
   // Resolved workspace UUID from the backend
   const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(null);
@@ -174,6 +180,39 @@ export default function WorkspacePage() {
     initWorkspace();
   }, [workspaceId, getToken, setCurrentWorkspace]);
 
+  // Load existing messages from the database when tile is resolved
+  useEffect(() => {
+    if (!resolvedTileId) return;
+
+    const loadMessages = async () => {
+      const token = await getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      try {
+        const res = await fetch(`${API_BASE}/messages/tile/${resolvedTileId}?limit=100`, {
+          headers,
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const messages = await res.json();
+          if (Array.isArray(messages) && messages.length > 0) {
+            const history = messages.map((msg: any) => ({
+              role: msg.role as 'user' | 'assistant',
+              content: msg.content,
+              model: msg.model || undefined,
+            }));
+            setChatHistory(history);
+          }
+        }
+      } catch {
+        // silently fail — messages will just not be pre-loaded
+      }
+    };
+
+    loadMessages();
+  }, [resolvedTileId, getToken]);
+
   const allModels = useMemo(() => getAvailableModels(), []);
   const models = allModels; // passed to ModelPreferencesModal
 
@@ -203,6 +242,7 @@ export default function WorkspacePage() {
     setIsStreaming(true);
     setAllDone(false);
     setStatusText('');
+    setLastUserMessage(userMessage);
 
     const modelsToUse = selectedModels.length > 0 ? selectedModels : allModels.slice(0, 3);
     abortControllersRef.current = [];
@@ -552,7 +592,7 @@ export default function WorkspacePage() {
 
         <div className="mt-3 space-y-1">
           <button
-            onClick={() => { setInput(''); setModelResponses([]); setAllDone(false); }}
+            onClick={() => { setInput(''); setModelResponses([]); setAllDone(false); setChatHistory([]); setLastUserMessage(''); }}
             className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-[var(--vel-card)]"
           >
             <CirclePlus className="h-4 w-4 text-[var(--vel-violet)]" />
@@ -604,12 +644,27 @@ export default function WorkspacePage() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-[var(--vel-border)] bg-[var(--vel-card)] p-2">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--vel-overlay)] text-xs font-semibold">S</span>
-            <div>
-              <p className="text-sm font-medium">Somesh</p>
+          <div
+            className="relative flex items-center gap-2 rounded-lg border border-[var(--vel-border)] bg-[var(--vel-card)] p-2"
+            onMouseEnter={() => setShowSignOut(true)}
+            onMouseLeave={() => setShowSignOut(false)}
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[var(--vel-overlay)] text-xs font-semibold">
+              {(session?.user?.name || 'U').charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium">{session?.user?.name || 'User'}</p>
               <p className="text-xs text-[var(--vel-text-secondary)]">Personal Workspace</p>
             </div>
+            {showSignOut && (
+              <button
+                onClick={() => signOut().then(() => window.location.href = '/sign-in')}
+                className="absolute inset-0 flex items-center justify-center gap-2 rounded-lg bg-[var(--vel-card)]/95 text-xs font-medium text-red-400 backdrop-blur-sm transition-all hover:text-red-300"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out
+              </button>
+            )}
           </div>
         </div>
       </aside>
@@ -629,8 +684,68 @@ export default function WorkspacePage() {
         </div>
 
         <section className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-4 sm:px-6">
+          {chatHistory.length > 0 && (
+            <div className="mb-4 space-y-3 overflow-y-auto">
+              {(() => {
+                // Group messages into turns: each user message followed by its assistant responses
+                const turns: Array<{ user: string; assistants: Array<{ content: string; model?: string }> }> = [];
+                let currentTurn: { user: string; assistants: Array<{ content: string; model?: string }> } | null = null;
+
+                chatHistory.forEach((msg) => {
+                  if (msg.role === 'user') {
+                    if (currentTurn) turns.push(currentTurn);
+                    currentTurn = { user: msg.content, assistants: [] };
+                  } else if (msg.role === 'assistant' && currentTurn) {
+                    currentTurn.assistants.push({ content: msg.content, model: msg.model });
+                  }
+                });
+                if (currentTurn) turns.push(currentTurn);
+
+                return turns.map((turn, ti) => (
+                  <div key={ti} className="space-y-3">
+                    {/* User message */}
+                    <div className="flex justify-end">
+                      <div className="max-w-[75%] rounded-xl border border-[var(--vel-border)] bg-violet-600/10 px-4 py-3">
+                        <p className="whitespace-pre-wrap text-sm text-[var(--vel-text)]">{turn.user}</p>
+                      </div>
+                    </div>
+                    {/* Assistant responses in grid */}
+                    {turn.assistants.length > 0 && (
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                        {turn.assistants.map((resp, ri) => (
+                          <div
+                            key={ri}
+                            className="rounded-xl border border-green-500/20 bg-[var(--vel-card)]"
+                          >
+                            <div className="flex items-center gap-2 border-b border-[var(--vel-border-subtle)] px-3 py-2">
+                              <span className="h-2.5 w-2.5 rounded-full bg-green-500" />
+                              <span className="text-sm font-semibold">{resp.model || 'AI'}</span>
+                            </div>
+                            <div className="px-3 py-2">
+                              <div className="max-h-96 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-[var(--vel-text)]">
+                                {resp.content}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+
           {modelResponses.length > 0 && (
             <div className="mb-4 flex-1 space-y-3 overflow-y-auto">
+              {/* Current user message */}
+              {lastUserMessage && (
+                <div className="flex justify-end">
+                  <div className="max-w-[75%] rounded-xl border border-[var(--vel-border)] bg-violet-600/10 px-4 py-3">
+                    <p className="whitespace-pre-wrap text-sm text-[var(--vel-text)]">{lastUserMessage}</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {modelResponses.map((response, i) => {
                   const isExpanded = expandedModels.has(response.modelId);
