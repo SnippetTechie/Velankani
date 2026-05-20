@@ -64,14 +64,115 @@ export default function WorkspacePage() {
   const [allDone, setAllDone] = useState(false);
   const { getToken } = useAuth();
 
+  // Resolved workspace UUID from the backend
+  const [resolvedWorkspaceId, setResolvedWorkspaceId] = useState<string | null>(null);
+  const [resolvedTileId, setResolvedTileId] = useState<string | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const abortControllersRef = useRef<AbortController[]>([]);
 
+  // Auto-create workspace and tile on page load
   useEffect(() => {
-    setCurrentWorkspace(workspaceId, 'Workspace');
-  }, [workspaceId, setCurrentWorkspace]);
+    const initWorkspace = async () => {
+      const token = await getToken();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      try {
+        // First check if user already has workspaces
+        const listRes = await fetch(`${API_BASE}/workspaces`, {
+          headers,
+          credentials: 'include',
+        });
+
+        if (listRes.ok) {
+          const existingWorkspaces = await listRes.json();
+          // Look for a workspace matching this slug name
+          const wsName = workspaceId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const existing = existingWorkspaces.find((ws: any) => ws.name === wsName);
+
+          if (existing) {
+            setResolvedWorkspaceId(existing.id);
+            setCurrentWorkspace(existing.id, existing.name);
+
+            // Get existing tiles for this workspace
+            const tilesRes = await fetch(`${API_BASE}/tiles/workspace/${existing.id}`, {
+              headers,
+              credentials: 'include',
+            });
+            if (tilesRes.ok) {
+              const existingTiles = await tilesRes.json();
+              if (existingTiles.length > 0) {
+                setResolvedTileId(existingTiles[0].id);
+                return;
+              }
+            }
+
+            // Create a tile if none exist
+            const tileRes = await fetch(`${API_BASE}/tiles`, {
+              method: 'POST',
+              headers,
+              credentials: 'include',
+              body: JSON.stringify({
+                workspaceId: existing.id,
+                reactFlowId: `tile-${Date.now()}`,
+                tileType: 'ai-chat',
+                label: 'Multi-Model Chat',
+                positionX: 0,
+                positionY: 0,
+              }),
+            });
+            if (tileRes.ok) {
+              const tile = await tileRes.json();
+              setResolvedTileId(tile.id);
+            }
+            return;
+          }
+        }
+
+        // No existing workspace found — create one
+        const wsName = workspaceId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const res = await fetch(`${API_BASE}/workspaces`, {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: JSON.stringify({ name: wsName }),
+        });
+        if (res.ok) {
+          const ws = await res.json();
+          setResolvedWorkspaceId(ws.id);
+          setCurrentWorkspace(ws.id, ws.name);
+
+          // Create a default tile for this workspace
+          const tileRes = await fetch(`${API_BASE}/tiles`, {
+            method: 'POST',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify({
+              workspaceId: ws.id,
+              reactFlowId: `tile-${Date.now()}`,
+              tileType: 'ai-chat',
+              label: 'Multi-Model Chat',
+              positionX: 0,
+              positionY: 0,
+            }),
+          });
+          if (tileRes.ok) {
+            const tile = await tileRes.json();
+            setResolvedTileId(tile.id);
+          }
+        } else {
+          setCurrentWorkspace(workspaceId, 'Workspace');
+        }
+      } catch {
+        setCurrentWorkspace(workspaceId, 'Workspace');
+      }
+    };
+
+    initWorkspace();
+  }, [workspaceId, getToken, setCurrentWorkspace]);
 
   const allModels = useMemo(() => getAvailableModels(), []);
   const models = allModels; // passed to ModelPreferencesModal
@@ -133,6 +234,24 @@ export default function WorkspacePage() {
     ];
 
     const token = await getToken();
+    const effectiveWorkspaceId = resolvedWorkspaceId || workspaceId;
+    const effectiveTileId = resolvedTileId || 'multi-model';
+
+    // Save user message to backend
+    if (resolvedTileId) {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      fetch(`${API_BASE}/messages`, {
+        method: 'POST',
+        headers,
+        credentials: 'include',
+        body: JSON.stringify({
+          tileId: resolvedTileId,
+          role: 'user',
+          content: userMessage + attachedContext,
+        }),
+      }).catch(() => {}); // fire-and-forget
+    }
 
     modelsToUse.forEach((model, index) => {
       const controller = new AbortController();
@@ -153,9 +272,9 @@ export default function WorkspacePage() {
             body: JSON.stringify({
               model: model.id,
               messages,
-              tileId: 'multi-model',
+              tileId: effectiveTileId,
               tileType: 'ai-chat',
-              workspaceId,
+              workspaceId: effectiveWorkspaceId,
               contextSources: webSearchEnabled ? ['web-search'] : [],
               maxTokens: 4096,
               requestId: `${model.id}-${Date.now()}`,
@@ -250,6 +369,30 @@ export default function WorkspacePage() {
           });
         } finally {
           completedCount++;
+
+          // Save assistant message to backend after streaming completes
+          if (resolvedTileId) {
+            setModelResponses((prev) => {
+              const resp = prev[index];
+              if (resp && resp.content && resp.status === 'done') {
+                const saveHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+                if (token) saveHeaders['Authorization'] = `Bearer ${token}`;
+                fetch(`${API_BASE}/messages`, {
+                  method: 'POST',
+                  headers: saveHeaders,
+                  credentials: 'include',
+                  body: JSON.stringify({
+                    tileId: resolvedTileId,
+                    role: 'assistant',
+                    content: resp.content,
+                    model: model.id,
+                  }),
+                }).catch(() => {});
+              }
+              return prev;
+            });
+          }
+
           if (completedCount === modelsToUse.length) {
             setIsStreaming(false);
             setAllDone(true);
@@ -260,7 +403,7 @@ export default function WorkspacePage() {
 
       streamModel();
     });
-  }, [input, attachedFiles, isStreaming, selectedModels, allModels, workspaceId, webSearchEnabled]);
+  }, [input, attachedFiles, isStreaming, selectedModels, allModels, workspaceId, webSearchEnabled, resolvedWorkspaceId, resolvedTileId, getToken]);
 
   const stopAll = () => {
     abortControllersRef.current.forEach((c) => c.abort());

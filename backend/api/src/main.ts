@@ -8,6 +8,12 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 require('dotenv').config({ path: '.env' });
 
+// Prevent unhandled promise rejections from crashing the server
+// (Better Auth dash plugin makes background network requests that may fail)
+process.on('unhandledRejection', (reason) => {
+  console.warn('⚠️  Unhandled rejection (non-fatal):', reason instanceof Error ? reason.message : reason);
+});
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import type { Request, Response } from 'express';

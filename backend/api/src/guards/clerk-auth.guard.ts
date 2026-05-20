@@ -23,25 +23,35 @@ export class ClerkAuthGuard implements CanActivate {
    * Returns the app user's UUID.
    */
   private async ensureAppUser(authUser: { id: string; email: string; name?: string | null }): Promise<string> {
-    // Use upsert to avoid race conditions and duplicate key errors
-    const result = await db.execute(
-      sql`INSERT INTO users (clerk_id, email, name, plan, credits_remaining, credits_monthly_alloc, credits_used_this_month, onboarding_complete)
-          VALUES (${authUser.id}, ${authUser.email}, ${authUser.name || null}, 'free', 100, 100, 0, false)
-          ON CONFLICT (clerk_id) DO UPDATE SET email = EXCLUDED.email
-          RETURNING id`
+    // First try to find by clerk_id
+    const existing = await db.execute(
+      sql`SELECT id FROM users WHERE clerk_id = ${authUser.id} LIMIT 1`
     );
-    const rows = Array.isArray(result) ? result : [];
+    const rows = Array.isArray(existing) ? existing : [];
     if (rows.length > 0) {
       return (rows[0] as any).id;
     }
 
-    // Fallback: look up by clerk_id
-    const existing = await db.execute(
-      sql`SELECT id FROM users WHERE clerk_id = ${authUser.id} LIMIT 1`
+    // Try by email
+    const byEmail = await db.execute(
+      sql`SELECT id FROM users WHERE email = ${authUser.email} LIMIT 1`
     );
-    const existingRows = Array.isArray(existing) ? existing : [];
-    if (existingRows.length > 0) {
-      return (existingRows[0] as any).id;
+    const emailRows = Array.isArray(byEmail) ? byEmail : [];
+    if (emailRows.length > 0) {
+      const userId = (emailRows[0] as any).id;
+      await db.execute(sql`UPDATE users SET clerk_id = ${authUser.id} WHERE id = ${userId}`);
+      return userId;
+    }
+
+    // Create new user
+    const result = await db.execute(sql`
+      INSERT INTO users (clerk_id, email, name, plan, credits_remaining, credits_monthly_alloc, credits_used_this_month, onboarding_complete)
+      VALUES (${authUser.id}, ${authUser.email}, ${authUser.name || null}, 'free', 100, 100, 0, false)
+      RETURNING id
+    `);
+    const insertedRows = Array.isArray(result) ? result : [];
+    if (insertedRows.length > 0) {
+      return (insertedRows[0] as any).id;
     }
 
     throw new Error('Failed to create or find app user');
@@ -132,6 +142,8 @@ export class ClerkAuthGuard implements CanActivate {
         email: session.user.email,
         name: session.user.name,
       });
+
+      this.logger.log(`Auth resolved: BA user ${session.user.id} -> app user ${appUserId}`);
 
       // Attach user to request with the app's UUID
       request.user = {
