@@ -4,42 +4,61 @@
 
 import { betterAuth } from 'better-auth';
 import { dash } from '@better-auth/infra';
+import { Pool } from 'pg';
 
-export const auth = betterAuth({
-  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
-  basePath: '/api/v1/auth',
-  secret: process.env.BETTER_AUTH_SECRET,
+function createAuth() {
+  if (!process.env.DATABASE_URL) {
+    console.warn(
+      '⚠️  DATABASE_URL not set — Better Auth disabled (auth routes will return 503).',
+    );
+    return null;
+  }
 
-  database: {
-    type: 'postgres',
-    url: process.env.DATABASE_URL!,
-  },
+  try {
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
 
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
-    minPasswordLength: 8,
-  },
+    return betterAuth({
+      baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
+      basePath: '/api/v1/auth',
+      secret: process.env.BETTER_AUTH_SECRET,
 
-  session: {
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5,
-    },
-    expiresIn: 60 * 60 * 24 * 7,
-    updateAge: 60 * 60 * 24,
-  },
+      database: pool,
 
-  trustedOrigins: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    'http://127.0.0.1:3000',
-  ],
+      emailAndPassword: {
+        enabled: true,
+        autoSignIn: true,
+        minPasswordLength: 8,
+      },
 
-  plugins: [
-    dash({
-      apiKey: process.env.BETTER_AUTH_API_KEY,
-    }),
-  ],
-});
+      session: {
+        cookieCache: {
+          enabled: true,
+          maxAge: 60 * 5,
+        },
+        expiresIn: 60 * 60 * 24 * 7,
+        updateAge: 60 * 60 * 24,
+      },
 
-export type Session = typeof auth.$Infer.Session;
+      trustedOrigins: [
+        process.env.FRONTEND_URL || 'http://localhost:3000',
+        'http://127.0.0.1:3000',
+      ],
+
+      plugins: [
+        dash({
+          apiKey: process.env.BETTER_AUTH_API_KEY,
+        }),
+      ],
+    });
+  } catch (error) {
+    console.error('❌ Failed to initialize Better Auth:', error);
+    return null;
+  }
+}
+
+export const auth = createAuth();
+
+export type Session = NonNullable<typeof auth> extends { $Infer: { Session: infer S } } ? S : any;

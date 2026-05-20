@@ -109,13 +109,20 @@ export class WorkspaceService {
 
   async verifyOwnership(workspaceId: string, userId: string): Promise<boolean> {
     try {
+      // Skip verification for non-UUID workspace IDs (e.g., "testing", "new")
+      // These are temporary/client-side workspaces that haven't been persisted yet
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(workspaceId)) {
+        return true; // Allow access to non-persisted workspaces
+      }
+
       const [row] = await db
         .select({ id: workspaces.id })
         .from(workspaces)
         .where(and(eq(workspaces.id, workspaceId), eq(workspaces.userId, userId)));
       return !!row;
-    } catch {
-      this.logger.error('DB unavailable in verifyOwnership, denying access');
+    } catch (error) {
+      this.logger.error(`verifyOwnership error: ${error}`);
       return false;
     }
   }

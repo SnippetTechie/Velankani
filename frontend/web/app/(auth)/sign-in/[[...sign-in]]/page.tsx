@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { signIn } from '@/lib/auth-client';
 
 export default function SignInPage() {
@@ -66,7 +65,8 @@ export default function SignInPage() {
       >
         {/* Logo */}
         <div className="w-14 h-14 mx-auto mb-6 flex items-center justify-center">
-          <Image src="/logo.avif" alt="VEL AI" width={56} height={56} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.avif" alt="VEL AI" width={56} height={56} className="rounded-lg" />
         </div>
 
         <h2 className="text-2xl font-semibold text-white mb-2">Welcome Back</h2>

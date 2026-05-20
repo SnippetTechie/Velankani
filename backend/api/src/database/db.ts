@@ -9,8 +9,12 @@ import * as schema from './schema';
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
 if (process.env.DATABASE_URL) {
-  const client = postgres(process.env.DATABASE_URL, { prepare: false });
+  const client = postgres(process.env.DATABASE_URL, {
+    prepare: false,
+    ssl: 'require',
+  });
   db = drizzle(client, { schema });
+  console.log('✅ Database connected via Drizzle');
 } else {
   console.warn(
     '⚠️  DATABASE_URL not set — database features will be unavailable.',

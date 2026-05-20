@@ -2,8 +2,11 @@
 // VEL AI — NestJS Bootstrap
 // ═══════════════════════════════════════════════════════════
 
-import { config } from 'dotenv';
-config({ path: '.env' });
+// IMPORTANT: env must be loaded before any other imports
+// Using require() because ES imports are hoisted above all code
+/* eslint-disable @typescript-eslint/no-var-requires */
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
+require('dotenv').config({ path: '.env' });
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
@@ -29,9 +32,11 @@ async function bootstrap() {
     ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
     : [
         process.env.FRONTEND_URL || 'http://localhost:3000',
+        process.env.BETTER_AUTH_URL,
         'http://127.0.0.1:3000',
         'http://localhost:3000',
-      ];
+        'https://app.better-auth.com',
+      ].filter(Boolean) as string[];
 
   app.enableCors({
     origin: allowedOrigins,
