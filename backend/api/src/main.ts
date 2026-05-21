@@ -47,28 +47,10 @@ async function bootstrap() {
   console.log('✅ CORS allowedOrigins:', allowedOrigins);
 
   app.enableCors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // In production, also allow the frontend URL pattern
-      if (origin.endsWith('.vercel.app')) return callback(null, true);
-      callback(null, false);
-    },
+    origin: true,
     credentials: true,
-    methods: process.env.CORS_METHODS?.split(',').map((m) => m.trim()) || [
-      'GET',
-      'POST',
-      'PUT',
-      'PATCH',
-      'DELETE',
-      'OPTIONS',
-    ],
-    allowedHeaders: process.env.CORS_HEADERS?.split(',').map((h) => h.trim()) || [
-      'Content-Type',
-      'Authorization',
-      'X-Request-ID',
-    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
   });
 
   app.useGlobalPipes(
