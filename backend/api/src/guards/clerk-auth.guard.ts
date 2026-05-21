@@ -116,21 +116,37 @@ export class ClerkAuthGuard implements CanActivate {
 
     try {
       // Support Bearer token auth for cross-domain deployments
-      // If Authorization header has a Bearer token, inject it as the session cookie header
       const authHeader = request.headers?.['authorization'] || '';
       const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 
+      // First try: use Better Auth's getSession with cookie injection
       const headersForAuth = { ...request.headers };
-      if (bearerToken && !request.headers?.cookie?.includes('better-auth.session_token')) {
+      if (bearerToken) {
         headersForAuth.cookie = `better-auth.session_token=${bearerToken}`;
       }
 
-      const session = await auth.api.getSession({
-        headers: fromNodeHeaders(headersForAuth),
-      });
+      let session: any = null;
+      try {
+        session = await auth.api.getSession({
+          headers: fromNodeHeaders(headersForAuth),
+        });
+      } catch {
+        // getSession failed, try direct DB lookup below
+      }
+
+      // Second try: if Bearer token exists but getSession failed, look up session directly in DB
+      if (!session && bearerToken) {
+        const sessionResult = await db.execute(
+          sql`SELECT s.*, u.id as "userId", u.email, u.name FROM session s JOIN "user" u ON s."userId" = u.id WHERE s.token = ${bearerToken} AND s."expiresAt" > NOW() LIMIT 1`
+        );
+        const rows = Array.isArray(sessionResult) ? sessionResult : [];
+        if (rows.length > 0) {
+          const row = rows[0] as any;
+          session = { user: { id: row.userId, email: row.email, name: row.name } };
+        }
+      }
 
       if (!session || !session.user) {
-        // In development, allow through if session verification fails
         if (process.env.NODE_ENV === 'development') {
           request.user = {
             id: '00000000-0000-0000-0000-000000000001',
