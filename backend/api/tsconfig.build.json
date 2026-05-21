@@ -10,15 +10,13 @@
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
     "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "ignoreDeprecations": "5.0"
+    "resolveJsonModule": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
