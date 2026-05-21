@@ -11,6 +11,26 @@ export const authClient = createAuthClient({
   basePath: '/api/v1/auth',
   fetchOptions: {
     credentials: 'include',
+    onSuccess: (ctx) => {
+      // Store session token in localStorage for cross-domain Bearer auth
+      if (typeof window !== 'undefined') {
+        const setCookie = ctx.response?.headers?.get('set-cookie') || '';
+        const tokenMatch = setCookie.match(/better-auth\.session_token=([^;]+)/);
+        if (tokenMatch) {
+          localStorage.setItem('vel-session-token', tokenMatch[1]);
+        }
+        // Also try to extract from response body
+        try {
+          const body = ctx.data as any;
+          if (body?.token) {
+            localStorage.setItem('vel-session-token', body.token);
+          }
+          if (body?.session?.token) {
+            localStorage.setItem('vel-session-token', body.session.token);
+          }
+        } catch {}
+      }
+    },
   },
 });
 

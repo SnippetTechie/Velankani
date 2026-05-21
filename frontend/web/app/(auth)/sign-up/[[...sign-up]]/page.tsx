@@ -25,7 +25,12 @@ export default function SignUpPage() {
         name,
       },
       {
-        onSuccess: () => {
+        onSuccess: (ctx) => {
+          // Store session token for cross-domain auth
+          const token = (ctx.data as any)?.token || (ctx.data as any)?.session?.token;
+          if (token && typeof window !== 'undefined') {
+            localStorage.setItem('vel-session-token', token);
+          }
           router.push('/dashboard');
         },
         onError: (ctx) => {
