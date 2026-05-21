@@ -579,7 +579,7 @@ export default function WorkspacePage() {
       <aside className="hidden w-72 shrink-0 border-r border-[var(--vel-border-subtle)] bg-[var(--vel-surface)]/90 px-4 py-4 lg:flex lg:flex-col">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="VEL AI logo" width={28} height={28} />
+            <img src="/logo.avif" alt="VEL AI logo" width={28} height={28} />
             <span className="font-display text-lg font-bold tracking-tight">VEL AI</span>
           </div>
           <button className="rounded-md p-1 text-[var(--vel-text-secondary)] transition-colors hover:bg-[var(--vel-card)] hover:text-[var(--vel-text)]">

@@ -72,7 +72,7 @@ export default function DashboardPage() {
             gap: 10,
           }}
         >
-          <Image src="/logo.png" alt="VEL AI logo" width={32} height={32} />
+          <img src="/logo.avif" alt="VEL AI logo" width={32} height={32} />
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>
             VEL AI
           </span>
