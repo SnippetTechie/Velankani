@@ -17,12 +17,19 @@ export default function middleware(req: NextRequest) {
   }
 
   // Check for Better Auth session cookie
-  // Better Auth sets a cookie named "better-auth.session_token" by default
+  // In cross-domain deployments (frontend on Vercel, backend on Render),
+  // the cookie may not be visible server-side. Allow through and let
+  // client-side auth handle the redirect.
   const session =
     req.cookies.get('better-auth.session_token') ||
     req.cookies.get('__Secure-better-auth.session_token');
 
   if (!session) {
+    // In production with cross-domain auth, skip server-side redirect
+    // Client-side useSession() will handle auth state
+    if (process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_API_URL) {
+      return NextResponse.next();
+    }
     const signInUrl = new URL('/sign-in', req.url);
     signInUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(signInUrl);
