@@ -3,20 +3,17 @@
 // ═══════════════════════════════════════════════════════════
 
 // IMPORTANT: env must be loaded before any other imports
-// Using require() because ES imports are hoisted above all code
 /* eslint-disable @typescript-eslint/no-var-requires */
 require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 require('dotenv').config({ path: '.env' });
 
-// Prevent unhandled promise rejections from crashing the server
-// (Better Auth dash plugin makes background network requests that may fail)
 process.on('unhandledRejection', (reason) => {
   console.warn('⚠️  Unhandled rejection (non-fatal):', reason instanceof Error ? reason.message : reason);
 });
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -31,30 +28,26 @@ async function bootstrap() {
       tracesSampleRate: 0.1,
       environment: process.env.NODE_ENV || 'development',
     });
-    console.log('Sentry initialized');
   }
 
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : [
-        process.env.FRONTEND_URL || 'http://localhost:3000',
-        process.env.BETTER_AUTH_URL,
-        'http://127.0.0.1:3000',
-        'http://localhost:3000',
-        'https://app.better-auth.com',
-      ].filter(Boolean) as string[];
+  // ─── RAW CORS MIDDLEWARE (runs before everything) ───────────
+  // This ensures ALL routes get CORS headers, including Better Auth's
+  // toNodeHandler which bypasses NestJS's built-in CORS.
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.use((req: Request, res: Response, next: NextFunction) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Request-ID');
 
-  console.log('✅ CORS allowedOrigins:', allowedOrigins);
-
-  app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
-      // Reflect the requesting origin for credentials support
-      if (!origin) return callback(null, true);
-      callback(null, origin);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-ID'],
+    if (req.method === 'OPTIONS') {
+      res.status(204).end();
+      return;
+    }
+    next();
   });
 
   app.useGlobalPipes(
@@ -78,7 +71,9 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`\n🚀 VEL AI API running on port ${port}\n`);
+  console.log(`\n🚀 VEL AI API running on port ${port}`);
+  console.log(`✅ CORS: reflecting all origins`);
+  console.log(`✅ Frontend: ${process.env.FRONTEND_URL || 'http://localhost:3000'}\n`);
 }
 
 bootstrap();
