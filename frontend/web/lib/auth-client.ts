@@ -9,6 +9,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v
 export const authClient = createAuthClient({
   baseURL: API_BASE.replace('/api/v1', ''), // Better Auth expects the base domain
   basePath: '/api/v1/auth',
+  fetchOptions: {
+    credentials: 'include',
+  },
 });
 
 export const {

@@ -42,6 +42,16 @@ function createAuth() {
         updateAge: 60 * 60 * 24,
       },
 
+      advanced: {
+        crossSubDomainCookies: {
+          enabled: false,
+        },
+        defaultCookieAttributes: {
+          sameSite: 'none',
+          secure: true,
+        },
+      },
+
       trustedOrigins: [
         process.env.FRONTEND_URL || 'http://localhost:3000',
         'http://127.0.0.1:3000',
