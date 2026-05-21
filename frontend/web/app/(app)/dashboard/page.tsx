@@ -99,7 +99,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <div
-            onClick={() => signOut({ fetchOptions: { onSuccess: () => window.location.href = '/sign-in' } })}
+            onClick={() => signOut({ fetchOptions: { onSuccess: () => { window.location.href = '/sign-in'; } } })}
             style={{
               width: 32,
               height: 32,

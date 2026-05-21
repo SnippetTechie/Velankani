@@ -3,5 +3,28 @@
   "buildCommand": "cd frontend/web && npm run build",
   "outputDirectory": "frontend/web/.next",
   "installCommand": "npm ci",
-  "ignoreCommand": "cd frontend/web && npx --yes turbo-ignore"
+  "ignoreCommand": "cd frontend/web && npx --yes turbo-ignore",
+  "regions": ["sin1"],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/logo.avif",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    }
+  ]
 }
